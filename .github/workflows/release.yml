@@ -38,9 +38,9 @@ jobs:
           echo "version=$version" >> "$GITHUB_OUTPUT"
           # The version is unique to the commit, so its release existing means this commit
           # has been built before.
-          if gh release view "v$version" > /dev/null 2>&1; then
+          if gh release view "build-$version" > /dev/null 2>&1; then
             echo "released=true" >> "$GITHUB_OUTPUT"
-            echo "::notice::v$version is already released from this commit: nothing to build."
+            echo "::notice::Build $version is already released from this commit: nothing to do."
           fi
 
   release:
@@ -87,7 +87,7 @@ jobs:
 
       - uses: actions/upload-artifact@v7
         with:
-          name: swatchbook-v${{ env.VERSION }}
+          name: swatchbook-build-${{ env.VERSION }}
           path: release/
           if-no-files-found: error
 
@@ -106,7 +106,7 @@ jobs:
               git log --format='- %s (%h)' "$previous..HEAD"
             fi
           } > "$RUNNER_TEMP/notes.md"
-          gh release create "v$VERSION" release/* \
+          gh release create "build-$VERSION" release/* \
             --target "$GITHUB_SHA" \
-            --title "Swatchbook $VERSION" \
+            --title "Build $VERSION" \
             --notes-file "$RUNNER_TEMP/notes.md"

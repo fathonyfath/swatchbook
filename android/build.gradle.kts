@@ -3,9 +3,6 @@ plugins {
     alias(libs.plugins.kotlin.compose)
 }
 
-// release.sh appends the number of commits to this for each release.
-val baseVersion = "1.0"
-
 android {
     namespace = "dev.fathony.swatchbook"
     compileSdk {
@@ -19,7 +16,7 @@ android {
         // release.sh passes the real ones; anything else is a development build.
         versionCode =
             providers.gradleProperty("releaseVersionCode").map { it.toInt() }.getOrElse(1)
-        versionName = providers.gradleProperty("releaseVersionName").getOrElse("$baseVersion-dev")
+        versionName = providers.gradleProperty("releaseVersionName").getOrElse("dev")
     }
 
     buildTypes {

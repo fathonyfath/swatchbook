@@ -4,10 +4,9 @@
 # Usage: ./release.sh <keystore> [key-alias]
 #        ./release.sh --version
 #
-# The version is the base version in android/build.gradle.kts followed by the number of
-# commits, such as 1.0.57. That number is the version code too: it only ever grows on a
-# branch that is never rewritten, and a commit always gets the same one. --version prints it
-# without building anything.
+# The version is the build number: the number of commits, which is the version code too. It
+# only ever grows on a branch that is never rewritten, and a commit always gets the same one.
+# --version prints it without building anything.
 #
 # The keystore and alias can also be given as RELEASE_KEYSTORE and RELEASE_KEY_ALIAS.
 # apksigner asks for the passwords, unless RELEASE_KS_PASS (and RELEASE_KEY_PASS when the
@@ -17,13 +16,11 @@ set -euo pipefail
 cd "$(dirname "$0")"
 
 if [ "$(git rev-parse --is-shallow-repository)" = true ]; then
-    echo "A shallow clone cannot count the commits the version is made from." >&2
+    echo "A shallow clone cannot count the commits the version is." >&2
     exit 1
 fi
-BASE_VERSION="$(sed -n 's/^val baseVersion = "\(.*\)"$/\1/p' android/build.gradle.kts)"
-COMMIT_COUNT="$(git rev-list --count HEAD)"
+VERSION="$(git rev-list --count HEAD)"
 COMMIT="$(git rev-parse --short=7 HEAD)"
-VERSION="$BASE_VERSION.$COMMIT_COUNT"
 
 if [ "${1:-}" = "--version" ]; then
     echo "$VERSION"
@@ -58,13 +55,13 @@ APKSIGNER="${BUILD_TOOLS}apksigner"
 ZIPALIGN="${BUILD_TOOLS}zipalign"
 
 UNSIGNED="android/build/outputs/apk/release/android-release-unsigned.apk"
-OUTPUT="release/swatchbook-v$VERSION.apk"
+OUTPUT="release/swatchbook-build-$VERSION.apk"
 # Needed to read stack traces of the obfuscated build.
-MAPPING="release/swatchbook-v$VERSION-mapping.txt"
+MAPPING="release/swatchbook-build-$VERSION-mapping.txt"
 
 ./gradlew clean lint assembleRelease \
-    -PreleaseVersionCode="$COMMIT_COUNT" \
-    -PreleaseVersionName="$VERSION+$COMMIT"
+    -PreleaseVersionCode="$VERSION" \
+    -PreleaseVersionName="$VERSION ($COMMIT)"
 
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
