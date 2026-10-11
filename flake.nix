@@ -26,6 +26,7 @@
         buildToolsVersions = [ "36.0.0" ];
         includeCmake = false;
       };
+      sdkRoot = "${android.androidsdk}/libexec/android-sdk";
     in
     {
       # CI runs the release inside this: nix develop --command ./release.sh <keystore>
@@ -39,7 +40,10 @@
           pkgs.unzip
         ];
         JAVA_HOME = jdk.home;
-        ANDROID_HOME = "${android.androidsdk}/libexec/android-sdk";
+        ANDROID_HOME = sdkRoot;
+        # GitHub's runners set this to an SDK of their own, and Gradle refuses to choose
+        # between two.
+        ANDROID_SDK_ROOT = sdkRoot;
       };
     };
 }
