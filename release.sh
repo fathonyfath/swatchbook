@@ -2,11 +2,11 @@
 # Builds, shrinks, signs and verifies the release APK.
 #
 # Usage: ./release.sh <keystore> [key-alias]
-#        ./release.sh --version
+#        ./release.sh --build
 #
-# The version is the build number: the number of commits, which is the version code too. It
-# only ever grows on a branch that is never rewritten, and a commit always gets the same one.
-# --version prints it without building anything.
+# A build is named after the commit it is made from, such as 1036b90; --build prints that
+# without building anything. Its version code is the number of commits, which only ever grows
+# on a branch that is never rewritten.
 #
 # The keystore and alias can also be given as RELEASE_KEYSTORE and RELEASE_KEY_ALIAS.
 # apksigner asks for the passwords, unless RELEASE_KS_PASS (and RELEASE_KEY_PASS when the
@@ -15,19 +15,20 @@ set -euo pipefail
 
 cd "$(dirname "$0")"
 
-if [ "$(git rev-parse --is-shallow-repository)" = true ]; then
-    echo "A shallow clone cannot count the commits the version is." >&2
-    exit 1
-fi
-VERSION="$(git rev-list --count HEAD)"
-COMMIT="$(git rev-parse --short=7 HEAD)"
+BUILD="$(git rev-parse --short=7 HEAD)"
 
-if [ "${1:-}" = "--version" ]; then
-    echo "$VERSION"
+if [ "${1:-}" = "--build" ]; then
+    echo "$BUILD"
     exit
 fi
 
-# The version names a commit, so the build has to be of exactly that commit.
+if [ "$(git rev-parse --is-shallow-repository)" = true ]; then
+    echo "A shallow clone cannot count the commits the version code is." >&2
+    exit 1
+fi
+VERSION_CODE="$(git rev-list --count HEAD)"
+
+# The build is named after a commit, so it has to be of exactly that commit.
 if ! git diff --quiet HEAD; then
     echo "There are uncommitted changes: commit them before releasing." >&2
     exit 1
@@ -55,13 +56,13 @@ APKSIGNER="${BUILD_TOOLS}apksigner"
 ZIPALIGN="${BUILD_TOOLS}zipalign"
 
 UNSIGNED="android/build/outputs/apk/release/android-release-unsigned.apk"
-OUTPUT="release/swatchbook-build-$VERSION.apk"
+OUTPUT="release/swatchbook-$BUILD.apk"
 # Needed to read stack traces of the obfuscated build.
-MAPPING="release/swatchbook-build-$VERSION-mapping.txt"
+MAPPING="release/swatchbook-$BUILD-mapping.txt"
 
 ./gradlew clean lint assembleRelease \
-    -PreleaseVersionCode="$VERSION" \
-    -PreleaseVersionName="$VERSION ($COMMIT)"
+    -PreleaseVersionCode="$VERSION_CODE" \
+    -PreleaseVersionName="$BUILD"
 
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT

@@ -16,46 +16,42 @@ permissions:
   contents: read
 
 jobs:
-  version:
+  check:
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
-      version: ${{ steps.version.outputs.version }}
-      released: ${{ steps.version.outputs.released }}
+      build: ${{ steps.build.outputs.build }}
+      released: ${{ steps.build.outputs.released }}
     steps:
       - uses: actions/checkout@v7
-        with:
-          # The version counts every commit.
-          fetch-depth: 0
 
-      - name: Work out the version
-        id: version
+      - name: Look for a release of this commit
+        id: build
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          version="$(./release.sh --version)"
-          echo "version=$version" >> "$GITHUB_OUTPUT"
-          # The version is unique to the commit, so its release existing means this commit
-          # has been built before.
-          if gh release view "build-$version" > /dev/null 2>&1; then
+          build="$(./release.sh --build)"
+          echo "build=$build" >> "$GITHUB_OUTPUT"
+          if gh release view "build-$build" > /dev/null 2>&1; then
             echo "released=true" >> "$GITHUB_OUTPUT"
-            echo "::notice::Build $version is already released from this commit: nothing to do."
+            echo "::notice::Build $build is already released: nothing to do."
           fi
 
   release:
-    needs: version
-    if: needs.version.outputs.released != 'true'
+    needs: check
+    if: needs.check.outputs.released != 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
       # To create the GitHub release.
       contents: write
     env:
-      VERSION: ${{ needs.version.outputs.version }}
+      BUILD: ${{ needs.check.outputs.build }}
     steps:
       - uses: actions/checkout@v7
         with:
+          # The version code counts every commit.
           fetch-depth: 0
 
       - uses: cachix/install-nix-action@v31
@@ -87,7 +83,7 @@ jobs:
 
       - uses: actions/upload-artifact@v7
         with:
-          name: swatchbook-build-${{ env.VERSION }}
+          name: swatchbook-${{ env.BUILD }}
           path: release/
           if-no-files-found: error
 
@@ -97,7 +93,7 @@ jobs:
         run: |
           commit_url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/commit/$GITHUB_SHA"
           {
-            echo "Built from commit [\`${GITHUB_SHA::7}\`]($commit_url)."
+            echo "Built from commit [\`$BUILD\`]($commit_url)."
             previous="$(gh release list --limit 1 --json tagName --jq '.[0].tagName // empty')"
             if [ -n "$previous" ]; then
               echo
@@ -106,7 +102,7 @@ jobs:
               git log --format='- %s (%h)' "$previous..HEAD"
             fi
           } > "$RUNNER_TEMP/notes.md"
-          gh release create "build-$VERSION" release/* \
+          gh release create "build-$BUILD" release/* \
             --target "$GITHUB_SHA" \
-            --title "Build $VERSION" \
+            --title "Build $BUILD" \
             --notes-file "$RUNNER_TEMP/notes.md"
