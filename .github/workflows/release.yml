@@ -4,10 +4,10 @@ name: Release
 # publishes it as a GitHub release. A commit that already has a release is not built again.
 #
 # Repository secrets:
-#   RELEASE_KEYSTORE_BASE64  the keystore file, from: base64 -w0 <keystore>
-#   RELEASE_KS_PASS          the keystore's password
-#   RELEASE_KEY_ALIAS        optional, when the keystore holds more than one key
-#   RELEASE_KEY_PASS         optional, when the key has a password of its own
+#   RELEASE_KEYSTORE_BASE64    the keystore file, from: base64 -w0 <keystore>
+#   RELEASE_KEYSTORE_PASSWORD  the keystore's password
+#   RELEASE_KEY_ALIAS          optional, when the keystore holds more than one key
+#   RELEASE_KEY_PASS           optional, when the key has a password of its own
 
 on:
   workflow_dispatch:
@@ -63,11 +63,11 @@ jobs:
       - name: Restore the keystore
         env:
           RELEASE_KEYSTORE_BASE64: ${{ secrets.RELEASE_KEYSTORE_BASE64 }}
-          RELEASE_KS_PASS: ${{ secrets.RELEASE_KS_PASS }}
+          RELEASE_KS_PASS: ${{ secrets.RELEASE_KEYSTORE_PASSWORD }}
         run: |
           # Checked here because without a password apksigner would ask for one.
           if [ -z "$RELEASE_KEYSTORE_BASE64" ] || [ -z "$RELEASE_KS_PASS" ]; then
-            echo "::error::The RELEASE_KEYSTORE_BASE64 and RELEASE_KS_PASS secrets must be set."
+            echo "::error::The RELEASE_KEYSTORE_BASE64 and RELEASE_KEYSTORE_PASSWORD secrets must be set."
             exit 1
           fi
           printf '%s' "$RELEASE_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/release.keystore"
@@ -75,7 +75,7 @@ jobs:
       - name: Build and sign
         env:
           RELEASE_KEYSTORE: ${{ runner.temp }}/release.keystore
-          RELEASE_KS_PASS: ${{ secrets.RELEASE_KS_PASS }}
+          RELEASE_KS_PASS: ${{ secrets.RELEASE_KEYSTORE_PASSWORD }}
           RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
           RELEASE_KEY_PASS: ${{ secrets.RELEASE_KEY_PASS }}
         # flake.nix pins its input itself, so there is no lock file to write or commit.
