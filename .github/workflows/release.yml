@@ -1,0 +1,112 @@
+name: Release
+
+# Run by hand on main: builds and signs the release APK with the toolchain from flake.nix and
+# publishes it as a GitHub release. A commit that already has a release is not built again.
+#
+# Repository secrets:
+#   RELEASE_KEYSTORE_BASE64  the keystore file, from: base64 -w0 <keystore>
+#   RELEASE_KS_PASS          the keystore's password
+#   RELEASE_KEY_ALIAS        optional, when the keystore holds more than one key
+#   RELEASE_KEY_PASS         optional, when the key has a password of its own
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  version:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      released: ${{ steps.version.outputs.released }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # The version counts every commit.
+          fetch-depth: 0
+
+      - name: Work out the version
+        id: version
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version="$(./release.sh --version)"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          # The version is unique to the commit, so its release existing means this commit
+          # has been built before.
+          if gh release view "v$version" > /dev/null 2>&1; then
+            echo "released=true" >> "$GITHUB_OUTPUT"
+            echo "::notice::v$version is already released from this commit: nothing to build."
+          fi
+
+  release:
+    needs: version
+    if: needs.version.outputs.released != 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      # To create the GitHub release.
+      contents: write
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - uses: cachix/install-nix-action@v31
+
+      - name: Restore the keystore
+        env:
+          RELEASE_KEYSTORE_BASE64: ${{ secrets.RELEASE_KEYSTORE_BASE64 }}
+          RELEASE_KS_PASS: ${{ secrets.RELEASE_KS_PASS }}
+        run: |
+          # Checked here because without a password apksigner would ask for one.
+          if [ -z "$RELEASE_KEYSTORE_BASE64" ] || [ -z "$RELEASE_KS_PASS" ]; then
+            echo "::error::The RELEASE_KEYSTORE_BASE64 and RELEASE_KS_PASS secrets must be set."
+            exit 1
+          fi
+          printf '%s' "$RELEASE_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/release.keystore"
+
+      - name: Build and sign
+        env:
+          RELEASE_KEYSTORE: ${{ runner.temp }}/release.keystore
+          RELEASE_KS_PASS: ${{ secrets.RELEASE_KS_PASS }}
+          RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
+          RELEASE_KEY_PASS: ${{ secrets.RELEASE_KEY_PASS }}
+        # flake.nix pins its input itself, so there is no lock file to write or commit.
+        run: nix develop --no-write-lock-file --command ./release.sh
+
+      - name: Remove the keystore
+        if: always()
+        run: rm -f "$RUNNER_TEMP/release.keystore"
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: swatchbook-v${{ env.VERSION }}
+          path: release/
+          if-no-files-found: error
+
+      - name: Publish the GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          commit_url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/commit/$GITHUB_SHA"
+          {
+            echo "Built from commit [\`${GITHUB_SHA::7}\`]($commit_url)."
+            previous="$(gh release list --limit 1 --json tagName --jq '.[0].tagName // empty')"
+            if [ -n "$previous" ]; then
+              echo
+              echo "## Changes since $previous"
+              echo
+              git log --format='- %s (%h)' "$previous..HEAD"
+            fi
+          } > "$RUNNER_TEMP/notes.md"
+          gh release create "v$VERSION" release/* \
+            --target "$GITHUB_SHA" \
+            --title "Swatchbook $VERSION" \
+            --notes-file "$RUNNER_TEMP/notes.md"

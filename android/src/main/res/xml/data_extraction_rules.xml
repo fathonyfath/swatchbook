@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The app stores no files, so there is nothing to include or exclude. This exists because
+     android:allowBackup alone no longer covers device-to-device transfers from Android 12. -->
+<data-extraction-rules>
+    <cloud-backup />
+    <device-transfer />
+</data-extraction-rules>

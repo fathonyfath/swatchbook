@@ -1,0 +1,21 @@
+-allowaccessmodification
+-repackageclasses
+
+# Parcelable.CREATOR is looked up by name by the framework.
+-keepclassmembers class * implements android.os.Parcelable {
+    public static final ** CREATOR;
+}
+
+# Enum.valueOf(Class, String) calls values() reflectively.
+-keepclassmembers enum * {
+    public static **[] values();
+}
+
+# Provided by the device (optional <uses-library>), never packaged. androidx.window probes for
+# them reflectively before use.
+-dontwarn androidx.window.extensions.**
+-dontwarn androidx.window.sidecar.**
+
+# Strips Kotlin's parameter null checks: a null passed where it should not be fails later
+# instead of immediately.
+-processkotlinnullchecks remove
